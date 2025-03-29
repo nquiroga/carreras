@@ -7,6 +7,7 @@ from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import re
 
 # Configuración de la página
 st.set_page_config(
@@ -49,7 +50,7 @@ st.markdown('<div class="title">📊 Análisis de Carreras</div>', unsafe_allow_
 def cargar_datos():
     try:
         # Cargar el archivo CSV
-        df = pd.read_csv('base_arg.csv')
+        df = pd.read_csv('base_arg_pickle.csv')
         
         # Convertir columna 'fecha' a datetime si está en formato string
         if 'fecha' in df.columns and df['fecha'].dtype == 'object':
@@ -60,7 +61,26 @@ def cargar_datos():
         st.error(f"Error al cargar el archivo: {e}")
         return None
 
-# Función para convertir tiempo (string) a segundos (int)
+# Función para extraer km de la columna distancia
+def extraer_distancia_km(texto):
+    if pd.isna(texto):
+        return np.nan
+    
+    texto = str(texto).lower()
+    # Buscar patrón de número seguido de "km"
+    km_match = re.search(r'(\d+(\.\d+)?)\s*km', texto)
+    
+    if km_match:
+        return float(km_match.group(1))
+    
+    # Si no encuentra km pero hay un número, intentar extraerlo
+    num_match = re.search(r'^(\d+(\.\d+)?)', texto)
+    if num_match:
+        return float(num_match.group(1))
+    
+    return np.nan
+
+# Función para convertir tiempo (string) a segundos (int) con soporte para días
 def tiempo_a_segundos(tiempo_str):
     if pd.isna(tiempo_str):
         return np.nan
@@ -160,6 +180,10 @@ if df is not None:
         df['edad'] = df['fecha'].dt.year - df['YOB']
         df['decil_edad'] = df['edad'].apply(calcular_decil_edad)
     
+    # Extraer distancias en kilómetros
+    if 'distancia' in df.columns:
+        df['distancia_km'] = df['distancia'].apply(extraer_distancia_km)
+    
     # Sidebar para selección de evento
     st.sidebar.markdown('### Selección de Carrera')
     
@@ -201,6 +225,58 @@ if df is not None:
             distancia = df_evento['distancia'].iloc[0] if 'distancia' in df_evento.columns else "No disponible"
             st.metric("Distancia/Tipo", distancia)
             st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Gráfico comparativo de distancias de eventos
+        st.markdown('<div class="subtitle">📏 Comparación de Distancias de Eventos</div>', unsafe_allow_html=True)
+        
+        # Preparar datos para el gráfico de distancias
+        if 'distancia_km' in df.columns:
+            eventos_con_distancia = df[['evento', 'distancia', 'distancia_km']].drop_duplicates().dropna(subset=['distancia_km'])
+            
+            if len(eventos_con_distancia) > 0:
+                # Ordenar por distancia
+                eventos_con_distancia = eventos_con_distancia.sort_values('distancia_km')
+                
+                # Crear una columna que indique si es el evento seleccionado
+                eventos_con_distancia['es_seleccionado'] = eventos_con_distancia['evento'] == evento_seleccionado
+                
+                # Crear gráfico de puntos para comparar distancias
+                fig_distancias = px.scatter(
+                    eventos_con_distancia,
+                    x='distancia_km',
+                    y='evento',
+                    color='es_seleccionado',
+                    size='distancia_km',
+                    hover_data=['distancia'],
+                    labels={
+                        'distancia_km': 'Distancia (km)',
+                        'evento': 'Evento',
+                        'es_seleccionado': 'Evento Seleccionado'
+                    },
+                    title='Comparación de Distancias entre Eventos',
+                    color_discrete_map={True: "#E11D48", False: "#1E3A8A"}
+                )
+                
+                # Configurar leyenda
+                fig_distancias.update_layout(
+                    height=max(400, len(eventos_con_distancia) * 25),  # Ajustar altura según cantidad de eventos
+                    showlegend=True,
+                    legend_title_text="",
+                    yaxis=dict(
+                        autorange="reversed"  # Invertir el eje Y para que el evento seleccionado esté más arriba
+                    )
+                )
+                
+                # Actualizar nombres de la leyenda
+                fig_distancias.for_each_trace(
+                    lambda trace: trace.update(name="Evento Seleccionado" if trace.name == "True" else "Otros Eventos")
+                )
+                
+                st.plotly_chart(fig_distancias, use_container_width=True)
+            else:
+                st.warning("No hay información de distancias disponible para los eventos.")
+        else:
+            st.warning("No se puede extraer información de distancias para los eventos.")
         
         # Análisis de tiempos por género
         st.markdown('<div class="subtitle">⏱️ Análisis de Tiempos por Género</div>', unsafe_allow_html=True)
