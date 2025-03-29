@@ -50,7 +50,7 @@ st.markdown('<div class="title">📊 Análisis de Carreras</div>', unsafe_allow_
 def cargar_datos():
     try:
         # Cargar el archivo CSV
-        df = pd.read_csv('base_arg_pickle.csv')
+        df = pd.read_csv('base_arg.csv')
         
         # Convertir columna 'fecha' a datetime si está en formato string
         if 'fecha' in df.columns and df['fecha'].dtype == 'object':
