@@ -226,57 +226,79 @@ if df is not None:
             st.metric("Distancia/Tipo", distancia)
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # Gráfico comparativo de distancias de eventos
-        st.markdown('<div class="subtitle">📏 Comparación de Distancias de Eventos</div>', unsafe_allow_html=True)
+        # Información detallada y gráfico comparativo de distancias (más compacto)
+        col1, col2 = st.columns([3, 1])
         
-        # Preparar datos para el gráfico de distancias
-        if 'distancia_km' in df.columns:
-            eventos_con_distancia = df[['evento', 'distancia', 'distancia_km']].drop_duplicates().dropna(subset=['distancia_km'])
-            
-            if len(eventos_con_distancia) > 0:
-                # Ordenar por distancia
-                eventos_con_distancia = eventos_con_distancia.sort_values('distancia_km')
+        with col1:
+            # Preparar datos para el gráfico de distancias compacto
+            if 'distancia_km' in df.columns:
+                # Colocar en la barra lateral
+                st.sidebar.markdown('---')
+                st.sidebar.markdown('<p style="font-size: 14px;"><b>📏 Comparativa de Distancias</b></p>', unsafe_allow_html=True)
                 
-                # Crear una columna que indique si es el evento seleccionado
-                eventos_con_distancia['es_seleccionado'] = eventos_con_distancia['evento'] == evento_seleccionado
+                eventos_con_distancia = df[['evento', 'distancia', 'distancia_km']].drop_duplicates().dropna(subset=['distancia_km'])
                 
-                # Crear gráfico de puntos para comparar distancias
-                fig_distancias = px.scatter(
-                    eventos_con_distancia,
-                    x='distancia_km',
-                    y='evento',
-                    color='es_seleccionado',
-                    size='distancia_km',
-                    hover_data=['distancia'],
-                    labels={
-                        'distancia_km': 'Distancia (km)',
-                        'evento': 'Evento',
-                        'es_seleccionado': 'Evento Seleccionado'
-                    },
-                    title='Comparación de Distancias entre Eventos',
-                    color_discrete_map={True: "#E11D48", False: "#1E3A8A"}
-                )
-                
-                # Configurar leyenda
-                fig_distancias.update_layout(
-                    height=max(400, len(eventos_con_distancia) * 25),  # Ajustar altura según cantidad de eventos
-                    showlegend=True,
-                    legend_title_text="",
-                    yaxis=dict(
-                        autorange="reversed"  # Invertir el eje Y para que el evento seleccionado esté más arriba
+                if len(eventos_con_distancia) > 0:
+                    # Ordenar por distancia
+                    eventos_con_distancia = eventos_con_distancia.sort_values('distancia_km')
+                    
+                    # Crear una columna que indique si es el evento seleccionado
+                    eventos_con_distancia['es_seleccionado'] = eventos_con_distancia['evento'] == evento_seleccionado
+                    
+                    # Obtener la distancia del evento seleccionado
+                    distancia_seleccionada = eventos_con_distancia[eventos_con_distancia['es_seleccionado']]['distancia_km'].values[0] if any(eventos_con_distancia['es_seleccionado']) else None
+                    
+                    # Crear gráfico de puntos minimalista
+                    fig_distancias = px.scatter(
+                        eventos_con_distancia,
+                        x='distancia_km',
+                        y=None,  # Sin eje Y para que todos los puntos estén en una línea
+                        color='es_seleccionado',
+                        size_max=12,
+                        size=[8 if not sel else 15 for sel in eventos_con_distancia['es_seleccionado']],  # Tamaño fijo
+                        hover_data=['distancia'],
+                        labels={
+                            'distancia_km': 'Distancia (km)',
+                            'es_seleccionado': ''
+                        },
+                        color_discrete_map={True: "#E11D48", False: "#1E3A8A"}
                     )
-                )
-                
-                # Actualizar nombres de la leyenda
-                fig_distancias.for_each_trace(
-                    lambda trace: trace.update(name="Evento Seleccionado" if trace.name == "True" else "Otros Eventos")
-                )
-                
-                st.plotly_chart(fig_distancias, use_container_width=True)
-            else:
-                st.warning("No hay información de distancias disponible para los eventos.")
-        else:
-            st.warning("No se puede extraer información de distancias para los eventos.")
+                    
+                    # Configurar el gráfico para que sea muy compacto
+                    fig_distancias.update_layout(
+                        height=120,
+                        margin=dict(l=10, r=10, t=30, b=20),
+                        showlegend=False,
+                        title=dict(
+                            text=f"Esta carrera: {round(distancia_seleccionada, 1)} km",
+                            font=dict(size=12),
+                            x=0.5
+                        ),
+                        yaxis=dict(
+                            showticklabels=False,
+                            showgrid=False,
+                            zeroline=False
+                        ),
+                        xaxis=dict(
+                            title=dict(
+                                text="Distancia (km)",
+                                font=dict(size=10)
+                            )
+                        ),
+                        plot_bgcolor='rgba(240,240,240,0.5)'
+                    )
+                    
+                    # Quitar líneas de cuadrícula y otros elementos
+                    fig_distancias.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='rgba(200,200,200,0.4)')
+                    fig_distancias.update_yaxes(showgrid=False)
+                    
+                    # Mostrar el gráfico
+                    st.sidebar.plotly_chart(fig_distancias, use_container_width=True)
+                    
+                    # Añadir una nota explicativa debajo del gráfico
+                    st.sidebar.markdown('<p style="font-size: 11px; color: #666;">Los puntos representan la distancia de cada evento. El punto rojo corresponde al evento seleccionado.</p>', unsafe_allow_html=True)
+                else:
+                    st.sidebar.markdown('<p style="font-size: 12px; color: #666;">No hay información de distancias disponible.</p>', unsafe_allow_html=True)
         
         # Análisis de tiempos por género
         st.markdown('<div class="subtitle">⏱️ Análisis de Tiempos por Género</div>', unsafe_allow_html=True)
